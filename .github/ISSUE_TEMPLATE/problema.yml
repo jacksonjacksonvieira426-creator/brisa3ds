@@ -1,0 +1,42 @@
+name: Problema (travou, fechou, tela preta)
+description: O app fechou, travou ou mostrou algo errado
+title: "[Problema] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        O log é o que mais ajuda. No app, abra **Configurações** na tela inicial e use **Compartilhar log**.
+        Depois do problema, anexe o arquivo aqui (arraste para a caixa de texto abaixo).
+  - type: input
+    id: aparelho
+    attributes:
+      label: Celular, chip e RAM
+      placeholder: "Ex.: Galaxy A15, Helio G99, 4 GB"
+    validations:
+      required: true
+  - type: dropdown
+    id: apk
+    attributes:
+      label: Qual APK você usou
+      options: ["arm64-v8a (64 bit)", "armeabi-v7a (32 bit, experimental)"]
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Número do build
+      description: "Aparece no nome da versão em Releases (ex.: build-12)."
+    validations:
+      required: true
+  - type: textarea
+    id: o-que-aconteceu
+    attributes:
+      label: O que aconteceu e em que momento
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: "Anexe o arquivo do log, ou cole as últimas 50 linhas."

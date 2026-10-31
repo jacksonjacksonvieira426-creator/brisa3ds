@@ -1,0 +1,74 @@
+name: Relatório de desempenho
+description: Conte como o Brisa3DS roda no seu celular (isso ajusta os perfis automáticos)
+title: "[Desempenho] "
+labels: ["desempenho"]
+body:
+  - type: input
+    id: aparelho
+    attributes:
+      label: Modelo do celular
+      placeholder: "Ex.: Galaxy A15"
+    validations:
+      required: true
+  - type: input
+    id: chip
+    attributes:
+      label: Processador (chip) e GPU
+      description: "O app CPU-Z mostra os dois na aba SoC."
+      placeholder: "Ex.: MediaTek Helio G99, Mali-G57"
+    validations:
+      required: true
+  - type: dropdown
+    id: ram
+    attributes:
+      label: Memória RAM
+      options: ["2 GB ou menos", "3 GB", "4 GB", "6 GB", "8 GB ou mais"]
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Versão do Android
+      placeholder: "Ex.: Android 13"
+    validations:
+      required: true
+  - type: dropdown
+    id: apk
+    attributes:
+      label: Qual APK você usou
+      options: ["arm64-v8a (64 bit)", "armeabi-v7a (32 bit, experimental)"]
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Número do build
+      description: "Aparece no nome da versão em Releases (ex.: build-12)."
+    validations:
+      required: true
+  - type: input
+    id: jogo
+    attributes:
+      label: Jogo testado
+    validations:
+      required: true
+  - type: dropdown
+    id: api
+    attributes:
+      label: API gráfica usada
+      options: ["Vulkan", "OpenGL ES", "Não sei"]
+    validations:
+      required: true
+  - type: input
+    id: fps
+    attributes:
+      label: FPS aproximado
+      description: "Ative o overlay de desempenho nas configurações para ver."
+      placeholder: "Ex.: 25 a 30, com quedas para 15 em cenas cheias"
+    validations:
+      required: true
+  - type: textarea
+    id: detalhes
+    attributes:
+      label: Observações
+      description: "Travamentos, engasgos, tela preta, o app fechou, etc."

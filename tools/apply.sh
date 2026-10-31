@@ -4,7 +4,8 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-TARGET="$(cd "${1:?usage: apply.sh /path/to/azahar}" && pwd)"
+TARGET="$(cd "${1:?usage: apply.sh /path/to/azahar [abi]}" && pwd)"
+ABI="${2:-arm64-v8a}"
 
 if [ ! -f "$TARGET/src/android/app/build.gradle.kts" ]; then
     echo "error: $TARGET does not look like an Azahar source tree" >&2
@@ -26,4 +27,8 @@ done
 
 cp -r "$HERE"/overlay/. .
 python3 "$HERE"/tools/rename.py "$TARGET"
+python3 "$HERE"/tools/fix_default_ini.py "$TARGET"
+if [[ "$ABI" == *armeabi-v7a* ]]; then
+    python3 "$HERE"/tools/fix_32bit.py "$TARGET"
+fi
 echo "== Brisa3DS changes applied"

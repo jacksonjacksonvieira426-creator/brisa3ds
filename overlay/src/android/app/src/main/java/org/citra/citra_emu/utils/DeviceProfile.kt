@@ -6,7 +6,9 @@ package org.citra.citra_emu.utils
 
 import android.app.Activity
 import android.app.ActivityManager
+import android.app.ApplicationExitInfo
 import android.content.Context
+import android.os.Build
 import android.os.Process
 import android.widget.Toast
 import org.citra.citra_emu.features.settings.model.BooleanSetting
@@ -30,7 +32,7 @@ object DeviceProfile {
     private const val KEY_TIER = "tier"
 
     // Bump this to make every install re-apply the profile once after an update.
-    private const val PROFILE_VERSION = 1
+    private const val PROFILE_VERSION = 2
 
     // Consecutive sessions that ended without a clean exit before safe mode kicks in.
     private const val UNCLEAN_LIMIT = 2
@@ -78,12 +80,13 @@ object DeviceProfile {
     }
 
     /**
-     * Call when a game starts. On weaker tiers this asks Android for sustained performance
+     * Call when a game starts. On the two weakest tiers this asks Android for sustained performance
      * mode, which keeps clocks steady instead of boosting and then throttling. Devices that
      * do not support it ignore the request.
      */
     fun applyRuntimeHints(activity: Activity) {
-        if (currentTier(activity) == Tier.HIGH) {
+        val tier = currentTier(activity)
+        if (tier != Tier.MINIMAL && tier != Tier.LOW) {
             return
         }
         activity.window.setSustainedPerformanceMode(true)
@@ -105,11 +108,9 @@ object DeviceProfile {
         settings.setGlobal(BooleanSetting.DISK_SHADER_CACHE, true)
         settings.setGlobal(BooleanSetting.SHADERS_ACCURATE_MUL, false)
 
-        if (tier == Tier.MINIMAL) {
-            // Old 3DS mode gives games the smaller memory layout. A few games need New 3DS and
-            // will not run with this off; those can be fixed with a per-game setting.
-            settings.setGlobal(BooleanSetting.NEW_3DS, false)
-        }
+        // Earlier builds turned New 3DS mode off on the weakest tier. That saved little memory and
+        // stops New 3DS games from opening, so this puts the default back.
+        settings.setGlobal(BooleanSetting.NEW_3DS, true)
 
         if (legacyGpu) {
             settings.setGlobal(IntSetting.GRAPHICS_API, GRAPHICS_API_OPENGL)
@@ -156,6 +157,26 @@ object DeviceProfile {
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
 
+    /**
+     * True when the process that left a session open died in a way that looks like a crash or a
+     * low-memory kill. Swiping the app away from recents does not count. Android 10 has no exit
+     * reasons, so there any session left open counts.
+     */
+    private fun lastExitLooksBad(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return true
+        }
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val last = am.getHistoricalProcessExitReasons(context.packageName, 0, 1).firstOrNull()
+            ?: return true
+        return when (last.reason) {
+            ApplicationExitInfo.REASON_CRASH,
+            ApplicationExitInfo.REASON_CRASH_NATIVE,
+            ApplicationExitInfo.REASON_LOW_MEMORY -> true
+            else -> false
+        }
+    }
+
     /** Call at app start, before [applyIfNeeded]. Detects sessions that died without exiting. */
     fun checkPreviousSession(context: Context) {
         val prefs = prefs(context)
@@ -163,8 +184,13 @@ object DeviceProfile {
             return
         }
 
-        val unclean = prefs.getInt(KEY_UNCLEAN_COUNT, 0) + 1
         val editor = prefs.edit().putBoolean(KEY_SESSION_OPEN, false)
+        if (!lastExitLooksBad(context)) {
+            editor.apply()
+            return
+        }
+
+        val unclean = prefs.getInt(KEY_UNCLEAN_COUNT, 0) + 1
         if (unclean >= UNCLEAN_LIMIT) {
             editor.putBoolean(KEY_FORCE_MINIMAL, true).putInt(KEY_UNCLEAN_COUNT, 0)
         } else {

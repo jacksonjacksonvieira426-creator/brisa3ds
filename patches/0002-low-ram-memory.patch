@@ -1,0 +1,150 @@
+--- a/src/video_core/renderer_vulkan/vk_texture_runtime.cpp	2026-10-31 01:56:38.667121651 +0000
++++ c/src/video_core/renderer_vulkan/vk_texture_runtime.cpp	2026-10-31 20:33:41.889690690 +0000
+@@ -10,6 +10,7 @@
+ #include <boost/container/small_vector.hpp>
+ #include <boost/container/static_vector.hpp>
+ #include <vulkan/vulkan.hpp>
++#include "common/memory_detect.h"
+ #include "video_core/custom_textures/custom_tex_manager.h"
+ #include "video_core/rasterizer_cache/pixel_format.h"
+ #include "video_core/rasterizer_cache/surface_params.h"
+@@ -159,8 +160,27 @@
+ }
+ 
+ constexpr u64 UPLOAD_BUFFER_SIZE = 512_MiB;
++constexpr u64 UPLOAD_BUFFER_SIZE_MEDIUM_RAM = 256_MiB;
++constexpr u64 UPLOAD_BUFFER_SIZE_LOW_RAM = 96_MiB;
+ constexpr u64 DOWNLOAD_BUFFER_SIZE = 16_MiB;
+ 
++// The staging buffer is sized for desktop GPUs. On phones with little RAM it would take a large
++// share of memory, so it is scaled down. 96 MiB still fits a 4096x4096 custom texture with mips.
++u64 UploadBufferSize() {
++    constexpr u64 GiB = 1024ULL * 1024ULL * 1024ULL;
++    const u64 ram = Common::GetMemInfo().total_physical_memory;
++    if (ram == 0) {
++        return UPLOAD_BUFFER_SIZE;
++    }
++    if (ram <= 3 * GiB) {
++        return UPLOAD_BUFFER_SIZE_LOW_RAM;
++    }
++    if (ram <= 6 * GiB) {
++        return UPLOAD_BUFFER_SIZE_MEDIUM_RAM;
++    }
++    return UPLOAD_BUFFER_SIZE;
++}
++
+ } // Anonymous namespace
+ 
+ void Handle::Create(u32 width, u32 height, u32 levels, TextureType type, vk::Format format,
+@@ -286,7 +306,7 @@
+                                u32 num_swapchain_images_)
+     : instance{instance}, scheduler{scheduler}, renderpass_cache{renderpass_cache},
+       blit_helper{instance, scheduler, renderpass_cache, update_queue},
+-      upload_buffer{instance, scheduler, vk::BufferUsageFlagBits::eTransferSrc, UPLOAD_BUFFER_SIZE,
++      upload_buffer{instance, scheduler, vk::BufferUsageFlagBits::eTransferSrc, UploadBufferSize(),
+                     BufferType::Upload},
+       download_buffer{instance, scheduler,
+                       vk::BufferUsageFlagBits::eTransferDst |
+--- a/src/video_core/renderer_vulkan/vk_rasterizer.cpp	2026-10-31 01:56:38.665319624 +0000
++++ c/src/video_core/renderer_vulkan/vk_rasterizer.cpp	2026-10-31 20:33:41.890172846 +0000
+@@ -6,6 +6,7 @@
+ #include "common/literals.h"
+ #include "common/logging/log.h"
+ #include "common/math_util.h"
++#include "common/memory_detect.h"
+ #include "common/microprofile.h"
+ #include "common/settings.h"
+ #include "core/core.h"
+@@ -34,6 +35,14 @@
+ using namespace Pica::Shader::Generator;
+ 
+ constexpr u64 STREAM_BUFFER_SIZE = 64_MiB;
++constexpr u64 STREAM_BUFFER_SIZE_LOW_RAM = 32_MiB;
++
++// Halved on devices with 3 GiB of RAM or less. A frame's vertex and index data is far smaller.
++u64 StreamBufferSize() {
++    constexpr u64 GiB = 1024ULL * 1024ULL * 1024ULL;
++    const u64 ram = Common::GetMemInfo().total_physical_memory;
++    return (ram != 0 && ram <= 3 * GiB) ? STREAM_BUFFER_SIZE_LOW_RAM : STREAM_BUFFER_SIZE;
++}
+ constexpr u64 UNIFORM_BUFFER_SIZE = 8_MiB;
+ constexpr u64 TEXTURE_BUFFER_SIZE = 2_MiB;
+ 
+@@ -68,7 +77,7 @@
+       pipeline_cache{instance, scheduler, renderpass_cache, update_queue},
+       runtime{instance, scheduler, renderpass_cache, update_queue, image_count},
+       res_cache{memory, custom_tex_manager, runtime, regs, renderer},
+-      stream_buffer{instance, scheduler, BUFFER_USAGE, STREAM_BUFFER_SIZE},
++      stream_buffer{instance, scheduler, BUFFER_USAGE, StreamBufferSize()},
+       uniform_buffer{instance, scheduler, vk::BufferUsageFlagBits::eUniformBuffer,
+                      UNIFORM_BUFFER_SIZE},
+       texture_buffer{instance, scheduler, vk::BufferUsageFlagBits::eUniformTexelBuffer,
+--- a/src/video_core/rasterizer_cache/rasterizer_cache.h	2026-10-31 01:56:38.658265585 +0000
++++ c/src/video_core/rasterizer_cache/rasterizer_cache.h	2026-10-31 20:33:41.890715980 +0000
+@@ -4,6 +4,7 @@
+ 
+ #pragma once
+ 
++#include <cstdio>
+ #include <type_traits>
+ #include <boost/container/small_vector.hpp>
+ #include <boost/range/iterator_range.hpp>
+@@ -23,6 +24,39 @@
+ 
+ namespace VideoCore {
+ 
++namespace Detail {
++
++/// True when the host is close to running out of memory. Only implemented for Linux and Android,
++/// where the kernel kills the biggest app before swapping, so a phone with 2 GB of RAM needs this.
++inline bool HostMemoryIsLow() {
++#if defined(__linux__)
++    std::FILE* file = std::fopen("/proc/meminfo", "r");
++    if (file == nullptr) {
++        return false;
++    }
++    unsigned long long total_kb = 0;
++    unsigned long long available_kb = 0;
++    char line[128];
++    while (std::fgets(line, sizeof(line), file) != nullptr) {
++        std::sscanf(line, "MemTotal: %llu kB", &total_kb);
++        std::sscanf(line, "MemAvailable: %llu kB", &available_kb);
++        if (total_kb != 0 && available_kb != 0) {
++            break;
++        }
++    }
++    std::fclose(file);
++    if (total_kb == 0 || available_kb == 0) {
++        return false;
++    }
++    // Less than a tenth of the RAM, and under 300 MB, is available.
++    return available_kb * 10 < total_kb && available_kb < 300ULL * 1024ULL;
++#else
++    return false;
++#endif
++}
++
++} // namespace Detail
++
+ MICROPROFILE_DECLARE(RasterizerCache_CopySurface);
+ MICROPROFILE_DECLARE(RasterizerCache_UploadSurface);
+ MICROPROFILE_DECLARE(RasterizerCache_DownloadSurface);
+@@ -105,6 +139,18 @@
+     custom_tex_manager.TickFrame();
+     RunGarbageCollector();
+ 
++    // Check the host memory about every two seconds. If it is low, drop every cached texture; they
++    // are rebuilt from emulated memory when needed. This stutters, but avoids being killed.
++    static u32 memory_check_countdown = 120;
++    if (--memory_check_countdown == 0) {
++        memory_check_countdown = 120;
++        if (Detail::HostMemoryIsLow()) {
++            LOG_WARNING(HW_GPU, "Host memory is low, dropping the cached textures");
++            UnregisterAll();
++            memory_check_countdown = 600; // Give the system time before trimming again.
++        }
++    }
++
+     const auto new_filter = Settings::values.texture_filter.GetValue();
+     if (filter != new_filter) [[unlikely]] {
+         filter = new_filter;

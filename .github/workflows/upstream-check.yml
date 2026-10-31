@@ -1,0 +1,39 @@
+name: upstream-check
+
+# Runs every Monday and by hand. It does NOT build the app. It only checks, in a few minutes,
+# that the Brisa3DS changes still apply to the newest Azahar and that the Android default config
+# is complete, so a broken upstream is found before a 40-minute build fails (or the app crashes).
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+env:
+  UPSTREAM_REPO: https://github.com/azahar-emu/azahar.git
+
+jobs:
+  check:
+    name: check (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, armeabi-v7a]
+    steps:
+      - name: Checkout Brisa3DS
+        uses: actions/checkout@v4
+
+      - name: Fetch Azahar (only the sirit submodule is needed here)
+        run: |
+          git clone --depth 1 "$UPSTREAM_REPO" azahar
+          git -C azahar submodule update --init --depth 1 externals/sirit
+
+      - name: Apply Brisa3DS changes
+        run: ./tools/apply.sh azahar ${{ matrix.abi }}
+
+      - name: Verify the Android default config
+        run: python3 tools/verify_default_ini.py azahar
+
+      - name: Record the commit that was checked
+        run: echo "Checked Azahar commit $(git -C azahar rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"

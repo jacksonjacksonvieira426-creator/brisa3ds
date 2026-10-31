@@ -1,0 +1,111 @@
+name: build-apk
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Azahar branch, tag or commit to build on"
+        default: "master"
+        required: true
+  push:
+    branches: [main, master]
+
+env:
+  UPSTREAM_REPO: https://github.com/azahar-emu/azahar.git
+  NDK_VERSION: 27.3.13750724
+  CMAKE_VERSION: 3.30.3
+
+jobs:
+  android:
+    name: android (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    # The 32-bit build is experimental: if it fails, the 64-bit APK is still published.
+    continue-on-error: ${{ matrix.experimental }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: arm64-v8a
+            experimental: false
+          - abi: armeabi-v7a
+            experimental: true
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPILERCHECK: content
+      CCACHE_SLOPPINESS: time_macros
+    steps:
+      - name: Checkout Brisa3DS
+        uses: actions/checkout@v4
+
+      - name: Fetch Azahar with all submodules
+        env:
+          REF: ${{ github.event.inputs.upstream_ref || 'master' }}
+        run: |
+          git clone "$UPSTREAM_REPO" azahar
+          cd azahar
+          git checkout "$REF"
+          git submodule update --init --recursive
+
+      - name: Apply Brisa3DS changes
+        run: ./tools/apply.sh azahar
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Gradle and ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ${{ env.CCACHE_DIR }}
+          key: lite-${{ runner.os }}-${{ matrix.abi }}-${{ github.run_id }}
+          restore-keys: |
+            lite-${{ runner.os }}-${{ matrix.abi }}-
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ccache
+          yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null || true
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager "cmake;${CMAKE_VERSION}" "ndk;${NDK_VERSION}"
+
+      - name: Build APK (${{ matrix.abi }})
+        working-directory: azahar/src/android
+        run: |
+          export NDK_CCACHE="$(which ccache)"
+          chmod +x ./gradlew
+          ./gradlew assembleVanillaRelease -PbrisaAbi=${{ matrix.abi }} --no-daemon
+          ccache -s
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          APK="$(find azahar/src/android/app/build/outputs/apk -name '*.apk' | head -n 1)"
+          cp "$APK" "out/brisa3ds-${{ matrix.abi }}.apk"
+          ls -lh out
+
+      - name: Publish release (download the APK from the Releases page)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.event.inputs.upstream_ref || 'master' }}
+          TAG: build-${{ github.run_number }}
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Brisa3DS build ${{ github.run_number }}" \
+            --notes "Built on Azahar ref: $REF. brisa3ds-arm64-v8a.apk is for almost every phone; brisa3ds-armeabi-v7a.apk is the experimental 32-bit build." \
+            || true
+          gh release upload "$TAG" out/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: brisa3ds-apk-${{ matrix.abi }}
+          path: out/*.apk
+          if-no-files-found: error

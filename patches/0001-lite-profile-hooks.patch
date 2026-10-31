@@ -1,0 +1,112 @@
+diff -ruN a/src/android/app/build.gradle.kts b/src/android/app/build.gradle.kts
+--- a/src/android/app/build.gradle.kts	2026-10-31 01:56:38.549796507 +0000
++++ b/src/android/app/build.gradle.kts	2026-10-31 02:16:37.125248566 +0000
+@@ -21,7 +21,7 @@
+  * next 680 years.
+  */
+ val autoVersion = (((System.currentTimeMillis() / 1000) - 1451606400) / 10).toInt()
+-val abiFilter = listOf("arm64-v8a", "x86_64")
++val abiFilter = (project.findProperty("brisaAbi") as String? ?: "arm64-v8a").split(",")
+ 
+ val downloadedJniLibsPath = "${layout.buildDirectory.get().asFile.path}/downloadedJniLibs"
+ 
+@@ -82,7 +82,8 @@
+                     "-DANDROID_ARM_NEON=true", // cryptopp requires Neon to work
+                     "-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON", // Support Android 15 16KiB page
+                     // sizes
+-                    "-DENABLE_GDBSTUB=OFF" // Disable GDB stub
++                    "-DENABLE_GDBSTUB=OFF", // Disable GDB stub
++                    "-DCITRA_WARNINGS_AS_ERRORS=OFF" // New compiler warnings must not break the build
+                 )
+             }
+         }
+diff -ruN a/src/android/app/src/main/java/org/citra/citra_emu/activities/EmulationActivity.kt b/src/android/app/src/main/java/org/citra/citra_emu/activities/EmulationActivity.kt
+--- a/src/android/app/src/main/java/org/citra/citra_emu/activities/EmulationActivity.kt	2026-10-31 01:56:38.550374092 +0000
++++ b/src/android/app/src/main/java/org/citra/citra_emu/activities/EmulationActivity.kt	2026-10-31 02:07:10.460151093 +0000
+@@ -52,6 +52,7 @@
+ import org.citra.citra_emu.utils.BuildUtil
+ import org.citra.citra_emu.utils.CitraDirectoryUtils
+ import org.citra.citra_emu.utils.ControllerMappingHelper
++import org.citra.citra_emu.utils.DeviceProfile
+ import org.citra.citra_emu.utils.DirectoryInitialization
+ import org.citra.citra_emu.utils.EmulationLifecycleUtil
+ import org.citra.citra_emu.utils.EmulationMenuSettings
+@@ -122,6 +123,9 @@
+ 
+         screenAdjustmentUtil = ScreenAdjustmentUtil(this, windowManager)
+ 
++        DeviceProfile.onSessionStart(applicationContext)
++        DeviceProfile.applyRuntimeHints(this)
++
+         // Block orientation until emulation is ready to prevent unneccesary
+         // surface recreation until the renderer is ready.
+         isRotationBlocked = true
+@@ -284,6 +288,7 @@
+         EmulationLifecycleUtil.removeHook(onShutdown)
+         NativeLibrary.playTimeManagerStop()
+         isEmulationRunning = false
++        DeviceProfile.onSessionEnd(applicationContext)
+         instance = null
+         secondaryDisplayManager.releasePresentation()
+         secondaryDisplayManager.releaseVD()
+diff -ruN a/src/android/app/src/main/java/org/citra/citra_emu/ui/main/MainActivity.kt b/src/android/app/src/main/java/org/citra/citra_emu/ui/main/MainActivity.kt
+--- a/src/android/app/src/main/java/org/citra/citra_emu/ui/main/MainActivity.kt	2026-10-31 01:56:38.557048088 +0000
++++ b/src/android/app/src/main/java/org/citra/citra_emu/ui/main/MainActivity.kt	2026-10-31 01:56:38.919833998 +0000
+@@ -58,6 +58,7 @@
+ import org.citra.citra_emu.utils.CiaInstallWorker
+ import org.citra.citra_emu.utils.CitraDirectoryHelper
+ import org.citra.citra_emu.utils.CitraDirectoryUtils
++import org.citra.citra_emu.utils.DeviceProfile
+ import org.citra.citra_emu.utils.DirectoryInitialization
+ import org.citra.citra_emu.utils.FileBrowserHelper
+ import org.citra.citra_emu.utils.InsetsHelper
+@@ -98,6 +99,8 @@
+         ) {
+             // load the global settings from the config file at program launch
+             SettingsFile.loadSettings(CitraSettings.activeSettings)
++            DeviceProfile.checkPreviousSession(applicationContext)
++            DeviceProfile.applyIfNeeded(applicationContext, CitraSettings.activeSettings)
+         }
+ 
+         ThemeUtil.themeChangeListener(this)
+diff -ruN a/src/core/memory.cpp b/src/core/memory.cpp
+--- a/src/core/memory.cpp	2026-10-31 01:56:38.646278804 +0000
++++ b/src/core/memory.cpp	2026-10-31 02:16:37.124543928 +0000
+@@ -5,6 +5,10 @@
+ #include <array>
+ #include <csignal>
+ #include <cstring>
++#include <new>
++#if defined(__linux__)
++#include <sys/mman.h>
++#endif
+ #include <boost/serialization/array.hpp>
+ #include <boost/serialization/binary_object.hpp>
+ #include "audio_core/dsp_interface.h"
+@@ -102,7 +106,26 @@
+ public:
+     // Visual Studio would try to allocate these on compile time
+     // if they are std::array which would exceed the memory limit.
++#if defined(__linux__)
++    // Anonymous mappings are zero-filled by the kernel and only use real memory once a page is
++    // touched, so the part of the 256 MB of emulated RAM that a game never uses costs nothing.
++    struct LazyRamDeleter {
++        void operator()(u8* ptr) const noexcept {
++            munmap(ptr, Memory::FCRAM_N3DS_SIZE);
++        }
++    };
++    static u8* AllocateLazyRam() {
++        void* ptr = mmap(nullptr, Memory::FCRAM_N3DS_SIZE, PROT_READ | PROT_WRITE,
++                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
++        if (ptr == MAP_FAILED) {
++            throw std::bad_alloc();
++        }
++        return static_cast<u8*>(ptr);
++    }
++    std::unique_ptr<u8[], LazyRamDeleter> fcram{AllocateLazyRam()};
++#else
+     std::unique_ptr<u8[]> fcram = std::make_unique<u8[]>(Memory::FCRAM_N3DS_SIZE);
++#endif
+     std::unique_ptr<u8[]> vram = std::make_unique<u8[]>(Memory::VRAM_SIZE);
+     std::unique_ptr<u8[]> n3ds_extra_ram = std::make_unique<u8[]>(Memory::N3DS_EXTRA_RAM_SIZE);
+     std::unique_ptr<u8[]> dsp_ram = std::make_unique<u8[]>(Memory::DSP_RAM_SIZE);

@@ -22,10 +22,8 @@ concurrency:
 jobs:
   android:
     name: android (${{ matrix.abi }})
-    # Pushes only build the 64-bit APK. The experimental 32-bit one runs when started by hand.
     runs-on: ubuntu-latest
     timeout-minutes: 150
-    # The 32-bit build is experimental: if it fails, the 64-bit APK is still published.
     continue-on-error: ${{ matrix.experimental }}
     permissions:
       contents: write
@@ -123,7 +121,7 @@ jobs:
           TAG: build-${{ github.run_number }}
         run: |
           UPSTREAM_SHA="$(git -C azahar rev-parse HEAD)"
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
             --title "Brisa3DS build ${{ github.run_number }}" \
             --notes "Built on Azahar ref: $REF (commit $UPSTREAM_SHA). To rebuild exactly this version, run the workflow with upstream_ref set to that commit. brisa3ds-arm64-v8a.apk is for almost every phone; brisa3ds-armeabi-v7a.apk is the experimental 32-bit build." \
             || true

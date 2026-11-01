@@ -29,6 +29,7 @@ cp -r "$HERE"/overlay/. .
 python3 "$HERE"/tools/rename.py "$TARGET"
 python3 "$HERE"/tools/fix_default_ini.py "$TARGET"
 python3 "$HERE"/tools/rebrand_links.py "$TARGET"
+python3 "$HERE"/tools/add_home_entry.py "$TARGET"
 if [[ "$ABI" == *armeabi-v7a* ]]; then
     python3 "$HERE"/tools/fix_32bit.py "$TARGET"
 fi

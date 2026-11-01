@@ -11,6 +11,8 @@ import android.content.Context
 import android.os.Build
 import android.os.Process
 import android.widget.Toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.citra.citra_emu.R
 import org.citra.citra_emu.features.settings.model.BooleanSetting
 import org.citra.citra_emu.features.settings.model.CitraSettings
 import org.citra.citra_emu.features.settings.model.IntSetting
@@ -182,6 +184,37 @@ object DeviceProfile {
             ApplicationExitInfo.REASON_LOW_MEMORY -> true
             else -> false
         }
+    }
+
+    /** Applies the automatic profile again, replacing the values chosen by hand. */
+    fun reapply(context: Context) {
+        prefs(context).edit()
+            .putInt(KEY_APPLIED_VERSION, 0)
+            .putBoolean(KEY_FORCE_MINIMAL, false)
+            .putInt(KEY_UNCLEAN_COUNT, 0)
+            .commit()
+        applyIfNeeded(context, CitraSettings.activeSettings)
+    }
+
+    /** Shows the current profile and offers to apply the automatic one again. */
+    fun showProfileDialog(context: Context) {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(info)
+
+        val message = context.getString(
+            R.string.brisa_profile_summary,
+            currentTier(context).name.lowercase(),
+            info.totalMem / GIB,
+            Runtime.getRuntime().availableProcessors(),
+            if (Process.is64Bit()) "64 bit" else "32 bit"
+        )
+        MaterialAlertDialogBuilder(context)
+            .setTitle(R.string.brisa_profile_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.brisa_profile_reapply) { _, _ -> reapply(context) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     /** Call at app start, before [applyIfNeeded]. Detects sessions that died without exiting. */

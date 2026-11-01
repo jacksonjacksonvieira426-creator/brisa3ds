@@ -26,6 +26,10 @@ aplica as mudanças e compila o APK.
   da velocidade real, o que soa como chiado. Com ele o som fica contínuo e com o tom certo, ao
   custo de um pouco de CPU e cerca de 100 ms de atraso. Dá para desligar nas configurações.
   Quando o perfil muda numa atualização ele é aplicado de novo uma vez.
+- **Menus**: a tela inicial ganhou **Perfil de desempenho** (mostra o perfil escolhido, a RAM e os
+  núcleos, e permite aplicar o perfil automático de novo). O botão do Discord, na tela "Sobre",
+  abria o servidor do Azahar; agora abre a página de problemas do seu repositório, com um ícone de
+  ajuda no lugar da logo do Discord.
 - **Registro de desempenho** (`PerfLogger.kt`): a cada 10 segundos de jogo grava no log uma linha
   `[Brisa3DS perf]` com FPS, velocidade, tempo de GPU, troca de quadro, IPC, SVC, o resto
   (principalmente a CPU emulada) e a RAM livre. É a base para decidir qual núcleo otimizar.
@@ -179,6 +183,7 @@ OpenAL continua ligado de propósito: ele aparece como opção de saída de áud
 | `docs/USO.md` | Guia para quem vai instalar e usar. |
 | `NOTICE.md`, `LICENSE` | Créditos e licença (GPLv3 ou posterior), que precisam acompanhar o projeto. |
 | `tools/rebrand_links.py` | Aponta os links do app e o verificador de atualização para o seu repositório. |
+| `tools/add_home_entry.py` | Acrescenta a opção Perfil de desempenho ao menu da tela inicial. |
 
 O workflow `upstream-check` não compila o app. Se ele falhar, o Azahar mudou algo que as
 mudanças do Brisa3DS precisam acompanhar. Você recebe o aviso do GitHub antes de gastar um build.

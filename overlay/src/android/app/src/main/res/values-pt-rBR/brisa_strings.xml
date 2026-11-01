@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="brisa_profile_title">Perfil de desempenho</string>
+    <string name="brisa_profile_description">Veja o perfil escolhido para este aparelho e aplique de novo</string>
+    <string name="brisa_profile_summary">Perfil: %1$s\nRAM: %2$.1f GB\nNúcleos da CPU: %3$d\nApp: %4$s\n\nAplicar o perfil de novo volta a resolução, o filtro de textura e as opções de shader e áudio para os valores escolhidos para este aparelho.</string>
+    <string name="brisa_profile_reapply">Aplicar de novo</string>
+</resources>

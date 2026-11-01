@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="brisa_profile_title">Performance profile</string>
+    <string name="brisa_profile_description">See the profile picked for this device and apply it again</string>
+    <string name="brisa_profile_summary">Profile: %1$s\nRAM: %2$.1f GB\nCPU cores: %3$d\nApp: %4$s\n\nApplying the profile again resets resolution, texture filter, shader and audio options to the values chosen for this device.</string>
+    <string name="brisa_profile_reapply">Apply again</string>
+</resources>

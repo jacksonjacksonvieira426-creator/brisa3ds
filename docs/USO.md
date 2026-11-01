@@ -25,6 +25,12 @@ Ele se aplica uma vez; depois você pode mudar tudo nas configurações.
 Se o celular for muito fraco, o perfil usa resolução 1x e shaders assíncronos. GPUs antigas usam
 OpenGL ES em vez de Vulkan.
 
+## Perfil de desempenho
+
+Na tela inicial do app, a opção **Perfil de desempenho** mostra qual perfil foi escolhido para o
+seu aparelho, a RAM e os núcleos que ele viu. O botão **Aplicar de novo** refaz a escolha
+automática e volta resolução, filtro e opções de shader e áudio para os valores do perfil.
+
 ## Modo de segurança
 
 Se o app cair ou for fechado pelo Android por falta de memória 2 vezes seguidas durante um jogo,

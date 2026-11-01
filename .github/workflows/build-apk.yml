@@ -23,7 +23,6 @@ jobs:
   android:
     name: android (${{ matrix.abi }})
     # Pushes only build the 64-bit APK. The experimental 32-bit one runs when started by hand.
-    if: github.event_name == 'workflow_dispatch' || !matrix.experimental
     runs-on: ubuntu-latest
     timeout-minutes: 150
     # The 32-bit build is experimental: if it fails, the 64-bit APK is still published.

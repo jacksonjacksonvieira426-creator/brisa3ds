@@ -1,6 +1,6 @@
 // Copyright 2026 Brisa3DS contributors
-// Licensed under GPLv2 or any later version
-// Refer to the misc/licenses/gplv2.txt file included.
+// Licensed under GPLv3 or any later version
+// Refer to the LICENSE.txt file included.
 
 package org.citra.citra_emu.utils
 
@@ -32,7 +32,7 @@ object DeviceProfile {
     private const val KEY_TIER = "tier"
 
     // Bump this to make every install re-apply the profile once after an update.
-    private const val PROFILE_VERSION = 2
+    private const val PROFILE_VERSION = 3
 
     // Consecutive sessions that ended without a clean exit before safe mode kicks in.
     private const val UNCLEAN_LIMIT = 2
@@ -111,6 +111,13 @@ object DeviceProfile {
         // Earlier builds turned New 3DS mode off on the weakest tier. That saved little memory and
         // stops New 3DS games from opening, so this puts the default back.
         settings.setGlobal(BooleanSetting.NEW_3DS, true)
+
+        if (tier == Tier.MINIMAL || tier == Tier.LOW) {
+            // Without stretching, the audio output repeats its last sample whenever the game runs
+            // slower than real time, which sounds like crackling. Stretching keeps the sound
+            // continuous (at the cost of a little CPU and about 100 ms of delay).
+            settings.setGlobal(BooleanSetting.ENABLE_AUDIO_STRETCHING, true)
+        }
 
         if (legacyGpu) {
             settings.setGlobal(IntSetting.GRAPHICS_API, GRAPHICS_API_OPENGL)
@@ -202,9 +209,15 @@ object DeviceProfile {
     fun onSessionStart(context: Context) {
         // commit() so the flag is on disk even if the process is killed right after.
         prefs(context).edit().putBoolean(KEY_SESSION_OPEN, true).commit()
+        Log.info(
+            "[Brisa3DS] profile=${currentTier(context).name.lowercase()} " +
+                "64bit=${Process.is64Bit()} android=${Build.VERSION.SDK_INT}"
+        )
+        PerfLogger.start(context)
     }
 
     fun onSessionEnd(context: Context) {
+        PerfLogger.stop()
         prefs(context).edit()
             .putBoolean(KEY_SESSION_OPEN, false)
             .putInt(KEY_UNCLEAN_COUNT, 0)

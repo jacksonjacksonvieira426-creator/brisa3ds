@@ -33,6 +33,8 @@ Fechar o app deslizando nas recentes não conta.
 
 ## Dicas para celulares fracos
 
+- Se o som chiar ou picotar, ative **Audio stretching** (já vem ligado nos perfis mais fracos). Se
+  achar que o som atrasa em relação à imagem, desligue.
 - Feche outros apps antes de jogar. Com 2 GB, cada aplicativo aberto conta.
 - Se um jogo engasga muito, teste trocar Vulkan por OpenGL ES (ou o contrário) nas configurações.
 - Se aparecer tela preta, tente trocar a API gráfica antes de qualquer outra coisa.
@@ -42,5 +44,11 @@ Fechar o app deslizando nas recentes não conta.
 1. No app, abra as **Configurações** da tela inicial e use **Compartilhar log**.
 2. Abra uma issue no repositório e escolha **Problema** (se travou) ou **Relatório de desempenho**.
 3. Anexe o log e preencha o modelo, o chip e a RAM do celular.
+
+Enquanto um jogo roda, o app grava no log uma linha a cada 10 segundos, começando por
+`[Brisa3DS perf]`. Ela mostra o FPS, a velocidade e para onde vai o tempo de cada quadro, em
+milissegundos: `gpu` (comandos da GPU), `swap` (troca de quadro), `ipc` e `svc` (sistema do 3DS) e
+`rest` (principalmente a CPU emulada), além da RAM livre. Ao reportar um problema de desempenho,
+cole 3 ou 4 dessas linhas: elas dizem o que precisa ser melhorado.
 
 Os relatórios de desempenho alimentam a tabela `compat/TABELA.md`, que ajuda a ajustar os perfis.

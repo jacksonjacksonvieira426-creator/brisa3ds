@@ -30,6 +30,8 @@ jobs:
           git -C azahar submodule update --init --depth 1 externals/sirit
 
       - name: Apply Brisa3DS changes
+        env:
+          BRISA_REPO: ${{ github.repository }}
         run: ./tools/apply.sh azahar ${{ matrix.abi }}
 
       - name: Verify the Android default config

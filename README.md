@@ -21,6 +21,14 @@ aplica as mudanças e compila o APK.
 - **Modo de desempenho sustentado** (perfis mínimo e baixo): pede ao Android para manter
   o clock estável durante o jogo, em vez de acelerar e depois reduzir por calor. Aparelhos sem
   suporte ignoram o pedido.
+- **Áudio contínuo em celulares lentos** (perfis mínimo e baixo): liga o "Audio stretching".
+  Lendo o código do áudio, sem ele a saída repete a última amostra sempre que o jogo roda abaixo
+  da velocidade real, o que soa como chiado. Com ele o som fica contínuo e com o tom certo, ao
+  custo de um pouco de CPU e cerca de 100 ms de atraso. Dá para desligar nas configurações.
+  Quando o perfil muda numa atualização ele é aplicado de novo uma vez.
+- **Registro de desempenho** (`PerfLogger.kt`): a cada 10 segundos de jogo grava no log uma linha
+  `[Brisa3DS perf]` com FPS, velocidade, tempo de GPU, troca de quadro, IPC, SVC, o resto
+  (principalmente a CPU emulada) e a RAM livre. É a base para decidir qual núcleo otimizar.
 - **Memória sob demanda** (`src/core/memory.cpp`): o Azahar reservava e zerava 256 MB de RAM do 3DS
   na abertura, mesmo para jogos que usam bem menos. Agora essa RAM só ocupa memória real quando o
   jogo a usa. Em um teste isolado a reserva caiu de 256 MB para 0 MB, mas o ganho dentro do
@@ -69,7 +77,9 @@ Os APKs saem assinados com chave de debug, o que basta para instalar direto no c
 
 ## Importante
 
-- O Azahar é licenciado em GPLv2 ou posterior, e este projeto segue a mesma licença. Se você
+- O código do Azahar é licenciado em GPLv3 ou posterior (alguns trechos herdados do Citra e do
+  yuzu são GPLv2 ou posterior, como indicam os cabeçalhos de cada arquivo), e este projeto segue a
+  mesma licença. Se você
   distribuir o APK, precisa também disponibilizar o código-fonte com as mudanças (este
   repositório faz esse papel) e manter os créditos ao Azahar e ao Citra.
 - Não envie estas mudanças ao projeto Azahar original: a política de IA deles proíbe
@@ -167,6 +177,8 @@ OpenAL continua ligado de propósito: ele aparece como opção de saída de áud
 | `.github/workflows/upstream-check.yml` | Toda segunda-feira confere, em poucos minutos, se o Azahar mais novo ainda aceita as mudanças. |
 | `.github/ISSUE_TEMPLATE/` | Formulários de problema e de relatório de desempenho. |
 | `docs/USO.md` | Guia para quem vai instalar e usar. |
+| `NOTICE.md`, `LICENSE` | Créditos e licença (GPLv3 ou posterior), que precisam acompanhar o projeto. |
+| `tools/rebrand_links.py` | Aponta os links do app e o verificador de atualização para o seu repositório. |
 
 O workflow `upstream-check` não compila o app. Se ele falhar, o Azahar mudou algo que as
 mudanças do Brisa3DS precisam acompanhar. Você recebe o aviso do GitHub antes de gastar um build.

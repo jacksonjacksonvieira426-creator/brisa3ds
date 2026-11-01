@@ -72,3 +72,9 @@ body:
     attributes:
       label: Observações
       description: "Travamentos, engasgos, tela preta, o app fechou, etc."
+  - type: textarea
+    id: linhas-perf
+    attributes:
+      label: Linhas de desempenho do log
+      description: "Depois de jogar 1 ou 2 minutos, use Compartilhar log e cole aqui 3 ou 4 linhas que comecem com [Brisa3DS perf]."
+      render: text
